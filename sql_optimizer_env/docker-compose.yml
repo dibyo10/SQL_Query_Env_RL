@@ -1,0 +1,90 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# SQL Query Optimizer — Docker Compose
+#
+# TWO MODES:
+#
+# 1. PRODUCTION USE (default)
+#    You bring your own Postgres database.
+#    Only run the environment server:
+#
+#      docker-compose up sql-optimizer-env
+#
+#    Then in your training script:
+#      env.reset(query="...", db_url="postgresql://user:pass@your-host/your-db")
+#
+#
+# 2. LOCAL DEVELOPMENT / TESTING
+#    No real database? Use the bundled sample database.
+#    It has orders/customers/regions tables pre-loaded with 500K rows.
+#
+#      docker-compose --profile dev up
+#
+#    Then in your training script:
+#      env.reset(query="...", db_url="postgresql://postgres:postgres@localhost:5432/sample")
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+version: "3.8"
+
+services:
+
+  # ── The environment server ─────────────────────────────────────────────────
+  # This is the only service needed for production use.
+  # Point it at your own database via reset(db_url=...) at runtime.
+  sql-optimizer-env:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+      args:
+        BUILD_MODE: standalone
+    image: openenv/sql-optimizer-env:latest
+    container_name: sql-optimizer-env
+    ports:
+      - "8000:8000"
+    environment:
+      # Server config
+      WORKERS: ${WORKERS:-4}
+      MAX_CONCURRENT_ENVS: ${MAX_CONCURRENT_ENVS:-100}
+      PORT: 8000
+      HOST: 0.0.0.0
+      # Episode config
+      MAX_STEPS: ${MAX_STEPS:-10}
+      QUERY_TIMEOUT_MS: ${QUERY_TIMEOUT_MS:-30000}
+    # No DB credentials here on purpose —
+    # user passes db_url at reset() time from their training script
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+
+  # ── Sample database (dev/testing only) ────────────────────────────────────
+  # Only starts when you run: docker-compose --profile dev up
+  # Has orders, customers, regions tables with 500K+ rows
+  # and all indexes pre-created so you can test the agent immediately
+  sample-db:
+    profiles: ["dev"]
+    image: postgres:15-alpine
+    container_name: sql-optimizer-sample-db
+    environment:
+      POSTGRES_DB: sample
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      # This script creates tables, indexes, and seeds data
+      - ./dev/sample_db_init.sql:/docker-entrypoint-initdb.d/01_init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d sample"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  sample-db-data:

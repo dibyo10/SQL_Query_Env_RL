@@ -1,0 +1,104 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OpenEnv Manifest
+# ─────────────────────────────────────────────────────────────────────────────
+
+spec_version: 1
+name: sql_optimizer_env
+type: space
+runtime: fastapi
+app: server.app:app
+port: 8000
+
+description: >
+  RL environment for learning to rewrite slow SQL queries.
+  Connects to any user-provided Postgres database at episode reset time.
+  No schema knowledge required upfront — discovers tables, indexes,
+  and statistics automatically from pg_catalog and information_schema.
+  Implements graceful degradation: structural rewrites always work,
+  hint-based rewrites activate automatically when pg_hint_plan is detected.
+
+actions:
+  description: >
+    The action space is split into two tiers. The environment probes the
+    user's database at reset() time and adjusts legal_actions accordingly.
+    Tier 2 actions are silently hidden when pg_hint_plan is not installed,
+    preventing silent 0.0 rewards from ignored hint comments.
+
+  tier_1:
+    description: "Structural rewrites — always available, no extensions required"
+    actions:
+      - id: 4
+        name: push_predicate
+        description: Move WHERE filter into JOIN ON clause to reduce rows early
+      - id: 5
+        name: replace_subquery_with_join
+        description: Rewrite IN (SELECT...) correlated subquery as a JOIN
+      - id: 6
+        name: remove_redundant_join
+        description: Drop a JOIN whose table columns are never referenced
+      - id: 7
+        name: replace_select_star
+        description: Expand SELECT * to explicit column list
+      - id: 8
+        name: materialize_cte
+        description: Add MATERIALIZED to force CTE to execute only once
+      - id: 9
+        name: submit
+        description: End episode and return current query as final answer
+
+  tier_2:
+    description: >
+      Hint-based rewrites — require pg_hint_plan on user's database.
+      If not installed, these actions are never added to legal_actions.
+      Probe query: SELECT 1 FROM pg_extension WHERE extname = 'pg_hint_plan'
+    install_guide: "https://github.com/ossc-db/pg_hint_plan"
+    actions:
+      - id: 1
+        name: add_index_hint
+        description: >
+          Add /*+ IndexScan(table index) */ to force Postgres to use
+          an existing index it is ignoring due to stale statistics
+      - id: 2
+        name: add_join_order_hint
+        description: >
+          Add /*+ Leading(t1 t2 t3) */ to force a specific join order
+      - id: 3
+        name: add_join_method_hint
+        description: >
+          Add /*+ HashJoin(...) */ or /*+ NestLoop(...) */ to force
+          a specific join algorithm
+
+env:
+  WORKERS:
+    default: "4"
+    description: "Number of uvicorn worker processes"
+  MAX_CONCURRENT_ENVS:
+    default: "100"
+    description: "Max WebSocket sessions per worker"
+  QUERY_TIMEOUT_MS:
+    default: "30000"
+    description: "Max time in ms a single query is allowed to run"
+  MAX_STEPS:
+    default: "10"
+    description: "Max rewrite steps per optimization episode"
+
+hardware:
+  recommended: "cpu-upgrade"
+  reason: >
+    Each step runs EXPLAIN ANALYZE against the user's database.
+    cpu-upgrade (8 vCPU) supports ~512 concurrent sessions.
+    cpu-basic (2 vCPU, free tier) supports ~128 concurrent sessions.
+
+requirements:
+  database:
+    engine: "PostgreSQL >= 13"
+    network: >
+      The environment container must reach the user's Postgres instance.
+      Pass the connection string at reset() time via db_url parameter.
+    extension_optional:
+      name: "pg_hint_plan"
+      effect: >
+        Without pg_hint_plan: only Tier 1 structural rewrites available (actions 4-9).
+        Hint actions (1, 2, 3) are automatically hidden from legal_actions.
+        The agent never receives 0.0 reward from silently ignored hints.
+      install: "https://github.com/ossc-db/pg_hint_plan"

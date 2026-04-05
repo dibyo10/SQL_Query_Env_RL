@@ -1,0 +1,23 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Server dependencies
+# These are installed inside the Docker container.
+#
+# For development, install everything via pyproject.toml instead:
+#   pip install -e ".[dev]"
+# ─────────────────────────────────────────────────────────────────────────────
+
+# OpenEnv core framework
+openenv-core[core]>=0.2.2
+
+# Postgres driver — binary build, no system libpq needed
+psycopg2-binary>=2.9.0
+
+# SQL parser and AST rewriter
+sqlglot>=23.0.0
+
+# Web server
+fastapi>=0.100.0
+uvicorn[standard]>=0.20.0
+
+# Request/response validation
+pydantic>=2.0.0

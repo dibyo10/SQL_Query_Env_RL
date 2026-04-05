@@ -1,0 +1,87 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# SQL Query Optimizer Environment
+# Meta OpenEnv Hackathon
+# ─────────────────────────────────────────────────────────────────────────────
+
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openenv-sql-optimizer-env"
+version = "0.1.0"
+description = "RL environment that teaches an agent to rewrite slow SQL queries. Connects to any Postgres database at runtime — no schema knowledge required upfront."
+readme = "README.md"
+requires-python = ">=3.10"
+
+dependencies = [
+    # ── OpenEnv core ──────────────────────────────────────────────────────────
+    # Provides: Environment base class, HTTPEnvClient, FastAPI server factory
+    "openenv-core[core]>=0.2.2",
+
+    # ── Postgres driver ───────────────────────────────────────────────────────
+    # psycopg2-binary includes the C library statically linked
+    # No system libpq needed — works inside the Docker container out of the box
+    "psycopg2-binary>=2.9.0",
+
+    # ── SQL parser and rewriter ───────────────────────────────────────────────
+    # Used to parse SQL into an AST, apply rewrites, and serialize back to SQL
+    # Supports postgres dialect, handles hints, CTEs, subqueries
+    "sqlglot>=23.0.0",
+
+    # ── Web server ────────────────────────────────────────────────────────────
+    "fastapi>=0.100.0",
+    "uvicorn[standard]>=0.20.0",
+
+    # ── Utilities ─────────────────────────────────────────────────────────────
+    # pydantic is used by FastAPI for request/response validation
+    "pydantic>=2.0.0",
+]
+
+[project.optional-dependencies]
+
+# Install with: pip install openenv-sql-optimizer-env[dev]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-asyncio>=0.21.0",
+    "httpx>=0.24.0",         # for testing FastAPI endpoints
+    "black>=23.0.0",         # formatter
+    "ruff>=0.1.0",           # linter
+]
+
+# Install with: pip install openenv-sql-optimizer-env[train]
+# Everything needed to run a GRPO training loop against this environment
+train = [
+    "torch>=2.0.0",
+    "transformers>=4.40.0",
+    "trl>=0.8.0",
+    "datasets>=2.0.0",
+    "accelerate>=0.20.0",
+]
+
+[project.scripts]
+# Start the environment server:
+#   uv run server
+#   python -m sql_optimizer_env.server.app
+server = "sql_optimizer_env.server.app:main"
+
+[tool.setuptools]
+include-package-data = true
+packages = [
+    "sql_optimizer_env",
+    "sql_optimizer_env.server",
+]
+package-dir = {"sql_optimizer_env"= "." , "sql_optimizer_env.server" = "server"}
+
+# ── Linting ───────────────────────────────────────────────────────────────────
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]
+
+# ── Testing ───────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
