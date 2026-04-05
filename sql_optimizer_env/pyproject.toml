@@ -18,21 +18,17 @@ dependencies = [
     # ── OpenEnv core ──────────────────────────────────────────────────────────
     # Provides: Environment base class, HTTPEnvClient, FastAPI server factory
     "openenv-core[core]>=0.2.2",
-
     # ── Postgres driver ───────────────────────────────────────────────────────
     # psycopg2-binary includes the C library statically linked
     # No system libpq needed — works inside the Docker container out of the box
     "psycopg2-binary>=2.9.0",
-
     # ── SQL parser and rewriter ───────────────────────────────────────────────
     # Used to parse SQL into an AST, apply rewrites, and serialize back to SQL
     # Supports postgres dialect, handles hints, CTEs, subqueries
     "sqlglot>=23.0.0",
-
     # ── Web server ────────────────────────────────────────────────────────────
     "fastapi>=0.100.0",
     "uvicorn[standard]>=0.20.0",
-
     # ── Utilities ─────────────────────────────────────────────────────────────
     # pydantic is used by FastAPI for request/response validation
     "pydantic>=2.0.0",

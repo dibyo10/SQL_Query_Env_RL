@@ -1,99 +1,48 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# sql_optimizer_env/client.py
 
-"""Sql Optimizer Env Environment Client."""
-
-from typing import Dict
-
-from openenv.core import EnvClient
-from openenv.core.client_types import StepResult
-from openenv.core.env_server.types import State
-
-from .models import SqlOptimizerAction, SqlOptimizerObservation
+from typing import Any, Dict
+from openenv.core.http_env_client import HTTPEnvClient
+from openenv.core.types import StepResult
+from sql_optimizer_env.models import SQLAction, SQLObservation, SQLState
 
 
-class SqlOptimizerEnv(
-    EnvClient[SqlOptimizerAction, SqlOptimizerObservation, State]
-):
-    """
-    Client for the Sql Optimizer Env Environment.
+class SQLOptimizerEnv(HTTPEnvClient[SQLAction, SQLObservation]):
 
-    This client maintains a persistent WebSocket connection to the environment server,
-    enabling efficient multi-step interactions with lower latency.
-    Each client instance has its own dedicated environment session on the server.
-
-    Example:
-        >>> # Connect to a running server
-        >>> with SqlOptimizerEnv(base_url="http://localhost:8000") as client:
-        ...     result = client.reset()
-        ...     print(result.observation.echoed_message)
-        ...
-        ...     result = client.step(SqlOptimizerAction(message="Hello!"))
-        ...     print(result.observation.echoed_message)
-
-    Example with Docker:
-        >>> # Automatically start container and connect
-        >>> client = SqlOptimizerEnv.from_docker_image("sql_optimizer_env-env:latest")
-        >>> try:
-        ...     result = client.reset()
-        ...     result = client.step(SqlOptimizerAction(message="Test"))
-        ... finally:
-        ...     client.close()
-    """
-
-    def _step_payload(self, action: SqlOptimizerAction) -> Dict:
-        """
-        Convert SqlOptimizerAction to JSON payload for step message.
-
-        Args:
-            action: SqlOptimizerAction instance
-
-        Returns:
-            Dictionary representation suitable for JSON encoding
-        """
+    def _step_payload(self, action: SQLAction) -> Dict[str, Any]:
         return {
-            "message": action.message,
+            "action_id": action.action_id,
+            "params":    action.params,
+            "metadata":  action.metadata,
         }
 
-    def _parse_result(self, payload: Dict) -> StepResult[SqlOptimizerObservation]:
-        """
-        Parse server response into StepResult[SqlOptimizerObservation].
-
-        Args:
-            payload: JSON response data from server
-
-        Returns:
-            StepResult with SqlOptimizerObservation
-        """
-        obs_data = payload.get("observation", {})
-        observation = SqlOptimizerObservation(
-            echoed_message=obs_data.get("echoed_message", ""),
-            message_length=obs_data.get("message_length", 0),
-            done=payload.get("done", False),
-            reward=payload.get("reward"),
-            metadata=obs_data.get("metadata", {}),
-        )
-
+    def _parse_result(self, payload: Dict) -> StepResult:
+        obs = payload.get("observation", {})
         return StepResult(
-            observation=observation,
-            reward=payload.get("reward"),
+            observation=SQLObservation(
+                current_query=obs.get("current_query", ""),
+                observation_vector=obs.get("observation_vector", []),
+                legal_actions=obs.get("legal_actions", []),
+                explain_plan=obs.get("explain_plan", {}),
+                #hints_available=obs.get("hint", False)
+                done=obs.get("done", False),
+                reward=obs.get("reward", 0.0),
+                metadata=obs.get("metadata", {}),
+            ),
+            reward=payload.get("reward", 0.0),
             done=payload.get("done", False),
         )
+    
 
-    def _parse_state(self, payload: Dict) -> State:
-        """
-        Parse server response into State object.
-
-        Args:
-            payload: JSON response from state request
-
-        Returns:
-            State object with episode_id and step_count
-        """
-        return State(
+    def _parse_state(self, payload: Dict) -> SQLState:
+        return SQLState(
             episode_id=payload.get("episode_id"),
+            original_query=payload.get("original_query", ""),
+            current_query=payload.get("current_query", ""),
+            baseline_time_ms=payload.get("baseline_time_ms", 0.0),
+            current_time_ms=payload.get("current_time_ms", 0.0),
+            rewrites_applied=payload.get("rewrites_applied", []),
             step_count=payload.get("step_count", 0),
+            total_reward=payload.get("total_reward", 0.0),
+            improvement_pct=payload.get("improvement_pct", 0.0),
+            #hints_available=payload.get("hints_available", False)
         )
