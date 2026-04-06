@@ -1,12 +1,11 @@
 # sql_optimizer_env/client.py
-
 from typing import Any, Dict
-from openenv.core.http_env_client import HTTPEnvClient
-from openenv.core.types import StepResult
+from openenv.core import EnvClient
+from openenv.core.env_server.types import StepResponse
 from sql_optimizer_env.models import SQLAction, SQLObservation, SQLState
 
 
-class SQLOptimizerEnv(HTTPEnvClient[SQLAction, SQLObservation]):
+class SQLOptimizerEnv(EnvClient[SQLAction, SQLObservation, SQLState]):
 
     def _step_payload(self, action: SQLAction) -> Dict[str, Any]:
         return {
@@ -15,9 +14,9 @@ class SQLOptimizerEnv(HTTPEnvClient[SQLAction, SQLObservation]):
             "metadata":  action.metadata,
         }
 
-    def _parse_result(self, payload: Dict) -> StepResult:
+    def _parse_result(self, payload: Dict) -> StepResponse:
         obs = payload.get("observation", {})
-        return StepResult(
+        return StepResponse(
             observation=SQLObservation(
                 current_query=obs.get("current_query", ""),
                 observation_vector=obs.get("observation_vector", []),

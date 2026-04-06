@@ -28,6 +28,7 @@ import sqlglot
 import sqlglot.expressions as exp
 
 from openenv.core.env_server import Environment
+
 from sql_optimizer_env.models import (
     ACTION_NAMES,
     TIER1_ACTION_IDS,

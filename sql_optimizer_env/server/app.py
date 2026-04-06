@@ -1,8 +1,8 @@
 # sql_optimizer_env/server/app.py
 
 import os
-from openenv_core.env_server import create_fastapi_app
-from sql_optimizer_env.server.sql_optimizer_environment import SQLOptimizerEnvironment
+from openenv_core import create_fastapi_app
+from sql_optimizer_env import SQLOptimizerEnvironment
 
 # Database config from environment variables
 # These are set in the Dockerfile or docker run command
